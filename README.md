@@ -41,11 +41,11 @@
    bash start.command
    ```
 
-   On first setup, enter your OpenAI API key when prompted; it will not be displayed as you type.
+   The first time you start a capture, enter your OpenAI API key when prompted; it will not be displayed as you type.
 4. Grant screen-recording permission when prompted in **System Settings → Privacy & Security**, then reopen the app if needed.
 5. For later launches, open `QuizSight.app` directly or run `open QuizSight.app` from the project directory. You do not need to rebuild each time.
 
-The setup script creates `~/.quizlens_api_key` with owner-only permissions. QuizSight sends the key to OpenAI over HTTPS to authenticate API requests. The app also reads the `OPENAI_API_KEY` environment variable and gives it priority over the local file. The setup script still prompts for a key if the local file is missing, even when the environment variable is set. **Never commit or share your key.**
+QuizSight stores your API key in macOS Keychain and sends it to OpenAI over HTTPS to authenticate API requests. If a key from an earlier version exists in `~/.quizlens_api_key`, QuizSight moves it to Keychain on the first capture and removes the old file after saving it successfully. If removal fails, delete the old file manually. The `OPENAI_API_KEY` environment variable takes priority when available to the app. **Never commit or share your key.**
 
 ### Updating a local build
 
@@ -57,7 +57,7 @@ Run `bash start.command --rebuild` while QuizSight is closed. Rebuilding an ad-h
 - The selected image is sent over HTTPS to the OpenAI API for analysis; it therefore leaves your Mac. **Avoid selecting passwords, personal records, private messages, or protected information.**
 - The request uses `store: false` and doesn't programmatically interact with Moodle or any other website.
 - API calls incur usage-based costs. Outputs are suggestions, not guaranteed correct answers.
-- The app currently uses a local file for the API key. For a production release, moving secrets to the macOS Keychain is preferable.
+- API keys are stored in macOS Keychain unless supplied through the `OPENAI_API_KEY` environment variable.
 
 ### Improving answer quality
 

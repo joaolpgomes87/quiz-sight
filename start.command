@@ -23,22 +23,6 @@ if [[ "${1:-}" == "--rebuild" ]]; then
     echo 'Quit QuizSight before continuing.'
 fi
 
-KEY_FILE="$HOME/.quizlens_api_key"
-if [[ ! -s "$KEY_FILE" ]]; then
-    echo 'QuizSight v3.6 — initial setup'
-    printf 'OpenAI API key (input is hidden): '
-    IFS= read -r -s API_KEY
-    printf '\n'
-    if [[ -z "$API_KEY" ]]; then
-        echo 'An API key is required to analyze questions.'
-        exit 1
-    fi
-    umask 077
-    printf '%s' "$API_KEY" > "$KEY_FILE"
-    chmod 600 "$KEY_FILE"
-    echo 'The key is stored only on your Mac.'
-fi
-
 if ! command -v xcrun >/dev/null 2>&1 || ! xcrun --find swiftc >/dev/null 2>&1; then
     echo 'Swift compiler unavailable. Install or repair the Apple Command Line Tools.'
     echo 'xcode-select --install'
@@ -55,7 +39,7 @@ cp QuizSight-Icon.png "$TEMP_APP/Contents/Resources/QuizSight-Icon.png"
 
 echo 'Building QuizSight v3.6 (only on first install or with --rebuild)…'
 if ! xcrun --sdk macosx swiftc -O QuizModels.swift main.swift \
-    -o "$TEMP_APP/Contents/MacOS/QuizLens" -framework AppKit -framework Foundation \
+    -o "$TEMP_APP/Contents/MacOS/QuizLens" -framework AppKit -framework Foundation -framework Security \
     2> "$BUILD_LOG"; then
     echo ''
     echo 'Build failed. First error messages:'

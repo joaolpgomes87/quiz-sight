@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Security
 
 private enum CaptureResult {
     case image(Data, String)
@@ -329,7 +330,7 @@ private final class PassthroughLabel: NSTextField {
     @objc private func startNewCapture() {
         guard !isCapturing else { return }
         guard readAPIKey() != nil else {
-            updateState(.failure("API key missing. Run start.command to set it up."))
+            updateState(.failure("API key unavailable. Check Keychain access or try again."))
             return
         }
 
@@ -546,11 +547,68 @@ private final class PassthroughLabel: NSTextField {
         let env = ProcessInfo.processInfo.environment["OPENAI_API_KEY"]?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let env = env, !env.isEmpty { return env }
-        let path = FileManager.default.homeDirectoryForCurrentUser
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.quizsight.openai-api-key",
+            kSecAttrAccount as String: "openai"
+        ]
+        var lookup = query
+        lookup[kSecReturnData as String] = true
+        lookup[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(lookup as CFDictionary, &item)
+        if status == errSecSuccess, let data = item as? Data,
+           let key = String(data: data, encoding: .utf8), !key.isEmpty {
+            return key
+        }
+        guard status == errSecItemNotFound else {
+            showKeyError("Could not read the API key from Keychain (error \(status)).")
+            return nil
+        }
+
+        let legacyFile = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".quizlens_api_key")
-        guard let key = try? String(contentsOf: path, encoding: .utf8)
-            .trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else { return nil }
+        let legacyKey = (try? String(contentsOf: legacyFile, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let key: String
+        if let legacyKey = legacyKey, !legacyKey.isEmpty {
+            key = legacyKey
+        } else {
+            let alert = NSAlert()
+            alert.messageText = "OpenAI API key"
+            alert.informativeText = "Enter your API key. QuizSight will save it in your macOS Keychain."
+            alert.addButton(withTitle: "Save")
+            alert.addButton(withTitle: "Cancel")
+            let input = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+            alert.accessoryView = input
+            guard alert.runModal() == .alertFirstButtonReturn else { return nil }
+            key = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else { return nil }
+        }
+
+        var newItem = query
+        newItem[kSecValueData as String] = Data(key.utf8)
+        let saveStatus = SecItemAdd(newItem as CFDictionary, nil)
+        guard saveStatus == errSecSuccess else {
+            showKeyError("Could not save the API key in Keychain (error \(saveStatus)).")
+            return nil
+        }
+        if let legacyKey = legacyKey, !legacyKey.isEmpty {
+            do {
+                try FileManager.default.removeItem(at: legacyFile)
+            } catch {
+                showKeyError("The key was saved in Keychain, but the old key file could not be removed. Delete ~/.quizlens_api_key manually.")
+            }
+        }
         return key
+    }
+
+    private func showKeyError(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = "QuizSight Keychain"
+        alert.informativeText = message
+        alert.runModal()
     }
 
     private func readModel() -> String {
