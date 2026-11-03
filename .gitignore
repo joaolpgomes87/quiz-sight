@@ -1,0 +1,27 @@
+# Applications / compiled artifacts
+*.app/
+.QuizLens-build-*.app/
+.build/
+DerivedData/
+*.dSYM/
+*.o
+*.swiftmodule
+*.swiftdoc
+*.zip
+
+# Personal configuration and API secrets
+.env
+.env.*
+!.env.example
+.quizlens_api_key
+.quizlens_model
+*api_key*
+
+# Local logs, temporary captures, editor and OS files
+*.log
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+*.png.tmp
