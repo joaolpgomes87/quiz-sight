@@ -226,6 +226,7 @@ private final class PassthroughLabel: NSTextField {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        cleanupStaleCaptures()
         // Use the original full-color logo as a non-template NSImage.
         // Do not apply contentTintColor, which could remove the gradient.
         statusItem = NSStatusBar.system.statusItem(withLength: 45)
@@ -392,9 +393,13 @@ private final class PassthroughLabel: NSTextField {
         let height = Int(ceil(primaryTop - rectangle.minY)) - y
         guard width >= 18, height >= 18 else { return .cancelled }
 
-        let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("quizlens-\(UUID().uuidString).png")
-        defer { try? FileManager.default.removeItem(at: file) }
+        cleanupStaleCaptures()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quizsight-capture-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false,
+                                                attributes: [.posixPermissions: 0o700])
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent("capture.png")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         process.arguments = ["-x", "-R", "\(x),\(y),\(width),\(height)", "-t", "png", file.path]
@@ -407,6 +412,29 @@ private final class PassthroughLabel: NSTextField {
         guard png.count > 500 else { return .cancelled }
         // Preserve small text and diagrams without lossy JPEG compression.
         return .image(png, "image/png")
+    }
+
+    private func cleanupStaleCaptures() {
+        let manager = FileManager.default
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey, .contentModificationDateKey]
+        guard let entries = try? manager.contentsOfDirectory(at: manager.temporaryDirectory,
+                                                              includingPropertiesForKeys: Array(keys)) else { return }
+        let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+        for entry in entries {
+            let name = entry.lastPathComponent
+            let prefix = "quizsight-capture-"
+            let oldPrefix = "quizlens-"
+            let isCaptureDirectory = name.hasPrefix(prefix) &&
+                UUID(uuidString: String(name.dropFirst(prefix.count))) != nil
+            let isLegacyCapture = name.hasPrefix(oldPrefix) && name.hasSuffix(".png") &&
+                UUID(uuidString: String(name.dropFirst(oldPrefix.count).dropLast(4))) != nil
+            guard isCaptureDirectory || isLegacyCapture,
+                  let properties = try? entry.resourceValues(forKeys: keys),
+                  properties.isSymbolicLink != true,
+                  properties.isDirectory == isCaptureDirectory,
+                  let modified = properties.contentModificationDate, modified < cutoff else { continue }
+            try? manager.removeItem(at: entry)
+        }
     }
 
     private func solveQuiz(image: Data, mime: String, runID: Int) {

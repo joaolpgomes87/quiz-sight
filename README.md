@@ -54,6 +54,7 @@ Run `bash start.command --rebuild` while QuizSight is closed. Rebuilding an ad-h
 ## Privacy / security
 
 - Only the screen **region you choose** is captured on demand; capture is not continuous.
+- Captures are temporarily written to a private folder and removed after use. On launch and before a capture, QuizSight also removes its leftover temporary captures older than 24 hours.
 - The selected image is sent over HTTPS to the OpenAI API for analysis; it therefore leaves your Mac. **Avoid selecting passwords, personal records, private messages, or protected information.**
 - The request uses `store: false` and doesn't programmatically interact with Moodle or any other website.
 - API calls incur usage-based costs. Outputs are suggestions, not guaranteed correct answers.
